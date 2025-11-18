@@ -43,7 +43,7 @@ import pystac_client
 import odc.stac
 
 # Connect to STAC catalog
-catalog = pystac_client.Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")
+catalog = pystac_client.Client.open("https://earth-search.aws.element84.com/v1")
 
 # Search for data
 query = catalog.search(
@@ -105,8 +105,8 @@ embeddings = model({"S2RGB": normalized_patches})
 ```
 
 ### 4. Supported Data Sources
+- **Element84 Earth Search**: AWS Open Data STAC catalog (primary)
 - **Microsoft Planetary Computer**: Global satellite imagery catalog
-- **Earth Search**: AWS Open Data STAC catalog  
 - **Sentinel-2**: Multi-spectral optical imagery
 - **Landsat**: Long-term Earth observation data
 - **MODIS**: Moderate Resolution Imaging Spectroradiometer data

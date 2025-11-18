@@ -4,7 +4,6 @@
 # STAC and data loading
 odc-stac>=0.3.0
 pystac-client>=0.7.0
-planetary-computer>=1.0.0
 stackstac>=0.4.0
 
 # Geospatial data handling

@@ -40,7 +40,7 @@ import pystac_client
 import odc.stac
 
 # Connect to a STAC catalog
-catalog = pystac_client.Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")
+catalog = pystac_client.Client.open("https://earth-search.aws.element84.com/v1")
 
 # Search for Sentinel-2 data
 search = catalog.search(
@@ -117,8 +117,8 @@ The repository includes several example notebooks and scripts:
 
 ## Supported Data Sources
 
+- **Element84 Earth Search**: AWS Open Data STAC catalog (primary)
 - **Microsoft Planetary Computer**: Global satellite imagery catalog
-- **Earth Search**: AWS Open Data STAC catalog
 - **Custom STAC APIs**: Any STAC-compliant data source
 
 ## Dependencies
@@ -152,6 +152,7 @@ See `pyproject.toml` for complete dependency list.
 - [odc-stac Documentation](https://github.com/opendatacube/odc-stac)
 - [TerraTorch Documentation](https://github.com/ibm/terratorch)
 - [STAC Specification](https://stacspec.org/)
+- [Element84 Earth Search](https://github.com/element84/earth-search)
 - [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)
 
 ## License

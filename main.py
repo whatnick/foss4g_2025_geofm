@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_stac_data(
-    catalog_url: str = "https://planetarycomputer.microsoft.com/api/stac/v1",
+    catalog_url: str = "https://earth-search.aws.element84.com/v1",
     collection: str = "sentinel-2-l2a",
     bbox: list = [174.5, -37.0, 175.0, -36.7],  # Auckland, New Zealand
     datetime: str = "2023-06-01/2023-06-30",

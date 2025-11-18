@@ -1,7 +1,14 @@
 # Configuration for FOSS4G 2025 GeoFM Demo
 # Example configuration for loading different datasets
 
-# Planetary Computer Configuration
+# Element84 Earth Search Configuration (Primary)
+element84_earth_search:
+  stac_url: "https://earth-search.aws.element84.com/v1"
+  collections:
+    sentinel2: "sentinel-2-l2a"
+    landsat: "landsat-c2-l2"
+
+# Planetary Computer Configuration (Alternative)
 planetary_computer:
   stac_url: "https://planetarycomputer.microsoft.com/api/stac/v1"
   collections:

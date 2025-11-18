@@ -19,7 +19,7 @@ def multitemporal_analysis():
 
     # Connect to catalog
     catalog = pystac_client.Client.open(
-        "https://planetarycomputer.microsoft.com/api/stac/v1"
+        "https://earth-search.aws.element84.com/v1"
     )
 
     # Search for data across multiple months
