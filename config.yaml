@@ -1,0 +1,64 @@
+# Configuration for FOSS4G 2025 GeoFM Demo
+# Example configuration for loading different datasets
+
+# Planetary Computer Configuration
+planetary_computer:
+  stac_url: "https://planetarycomputer.microsoft.com/api/stac/v1"
+  collections:
+    sentinel2: "sentinel-2-l2a"
+    landsat: "landsat-c2-l2"
+    modis: "modis-14A1-061"
+
+# Data Loading Configuration
+data_loading:
+  default_resolution: 60  # meters
+  chunk_size: 
+    time: 1
+    x: 512
+    y: 512
+  bands:
+    optical: ["red", "green", "blue", "nir"]
+    full_spectrum: ["coastal", "blue", "green", "red", "rededge1", "rededge2", "rededge3", "nir", "nir08", "nir09", "cirrus", "swir16", "swir22"]
+
+# Sample Areas of Interest
+sample_areas:
+  auckland:
+    bbox: [174.6, -36.95, 174.85, -36.75]
+    description: "Auckland, New Zealand"
+    
+  san_francisco:
+    bbox: [-122.5, 37.4, -121.8, 38.0]
+    description: "San Francisco Bay Area"
+  
+  manhattan:
+    bbox: [-74.0, 40.7, -73.9, 40.8] 
+    description: "Manhattan, New York"
+    
+  london:
+    bbox: [-0.5, 51.3, 0.3, 51.7]
+    description: "London, UK"
+
+# TerraTorch Configuration
+terratorch:
+  tile_size: 256
+  overlap: 32
+  normalization:
+    method: "percentile"  # or "minmax", "zscore"
+    percentiles: [2, 98]
+  
+  augmentations:
+    enabled: true
+    horizontal_flip: 0.5
+    vertical_flip: 0.5
+    rotation: 0.3
+    brightness: 0.2
+    contrast: 0.2
+
+# Output Configuration
+output:
+  base_dir: "./outputs"
+  save_intermediates: true
+  visualization:
+    dpi: 300
+    format: "png"
+    create_overview: true
