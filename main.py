@@ -291,17 +291,54 @@ def normalize_terramind_input(patches: np.ndarray) -> torch.Tensor:
 def load_terramind_model():
     """
     Load the TerraMind model for embedding generation.
+    Falls back to other available models if TerraMind is not available.
 
     Returns:
-        Loaded TerraMind model or None if loading fails
+        Loaded model or None if loading fails
     """
     try:
-        from terratorch.models.backbones import BACKBONE_REGISTRY
+        from terratorch import BACKBONE_REGISTRY
 
-        logger.info("Loading TerraMind model...")
-        model = BACKBONE_REGISTRY.build(
-            "terramind_v1_base", modalities=["S2RGB"], pretrained=True
-        )
+        # List of models to try, in order of preference
+        model_candidates = [
+            ("terramind_v1_base", ["S2RGB"]),  # Primary choice
+            ("clay_v1", ["optical"]),  # Clay foundation model fallback
+            ("prithvi_vit", ["optical"]),  # Prithvi foundation model fallback
+            ("resnet18", None),  # Simple CNN fallback
+        ]
+
+        model = None
+        model_name_used = None
+
+        for model_name, modalities in model_candidates:
+            try:
+                logger.info(f"Attempting to load model: {model_name}")
+
+                if modalities:
+                    model = BACKBONE_REGISTRY.build(
+                        model_name, modalities=modalities, pretrained=True
+                    )
+                else:
+                    model = BACKBONE_REGISTRY.build(model_name, pretrained=True)
+
+                model_name_used = model_name
+                logger.info(f"Successfully loaded {model_name}")
+                break
+
+            except Exception as e:
+                logger.info(f"Failed to load {model_name}: {e}")
+                continue
+
+        if model is None:
+            logger.warning(
+                "Could not load any model. TerraMind and other foundation models may not be available."
+            )
+            logger.warning(
+                "This may be due to missing model weights or incompatible TerraTorch version."
+            )
+            return None
+
+        # Configure the model
         model.eval()
 
         # Check device availability
@@ -312,14 +349,24 @@ def load_terramind_model():
             model = model.to(device)
             logger.info("Model moved to GPU")
 
+        if model_name_used != "terramind_v1_base":
+            logger.warning(
+                f"TerraMind not available, using {model_name_used} as fallback."
+            )
+            logger.warning(
+                "Embeddings will be generated but may not be TerraMind-specific."
+            )
+        else:
+            logger.info("TerraMind model loaded successfully")
+
         return model
 
     except ImportError as e:
-        logger.warning(f"Could not load TerraMind model: {e}")
+        logger.warning(f"Could not import TerraTorch: {e}")
         logger.warning("Please ensure terratorch is installed: pip install terratorch")
         return None
     except Exception as e:
-        logger.error(f"Error loading TerraMind model: {e}")
+        logger.error(f"Error loading model: {e}")
         return None
 
 
@@ -327,11 +374,11 @@ def generate_terramind_embeddings(
     rgb_data: np.ndarray, model, patch_size: int = 16, batch_size: int = 32
 ) -> Tuple[Optional[np.ndarray], Dict[str, Any]]:
     """
-    Generate TerraMind embeddings for RGB satellite imagery.
+    Generate embeddings for RGB satellite imagery using any available model.
 
     Args:
         rgb_data: RGB data array of shape (H, W, 3), values in [0, 1]
-        model: Loaded TerraMind model
+        model: Loaded model (TerraMind or fallback)
         patch_size: Size of patches for processing
         batch_size: Batch size for inference
 
@@ -368,17 +415,61 @@ def generate_terramind_embeddings(
     try:
         with torch.no_grad():
             for i in range(0, len(patches_tensor), batch_size):
-                batch = patches_tensor[i : i + batch_size].to(device)
+                batch = patches_tensor[i:i + batch_size].to(device)
 
-                # Generate embeddings
-                batch_embeddings = model({"S2RGB": batch})
+                # Check if this is a TerraMind-like model (expects dict)
+                try:
+                    # Try TerraMind format first
+                    batch_embeddings = model({"S2RGB": batch})
+                except (TypeError, KeyError, RuntimeError) as e:
+                    # Fall back to standard tensor input
+                    try:
+                        batch_embeddings = model(batch)
+                        
+                        # Handle different return types
+                        if isinstance(batch_embeddings, list):
+                            # ResNet often returns a list, take last element
+                            batch_embeddings = batch_embeddings[-1]
+                        elif isinstance(batch_embeddings, tuple):
+                            # Some models return tuples
+                            batch_embeddings = batch_embeddings[0]
+                    except Exception as e2:
+                        # If model has forward_features method, use that
+                        if hasattr(model, 'forward_features'):
+                            batch_embeddings = model.forward_features(batch)
+                        else:
+                            # Last resort: get features before classification
+                            if hasattr(model, 'features'):
+                                features = model.features(batch)
+                                # Global avg pooling for fixed-size embeddings
+                                pool_fn = torch.nn.functional.\
+                                    adaptive_avg_pool2d
+                                batch_embeddings = pool_fn(
+                                    features, (1, 1)
+                                ).flatten(1)
+                            else:
+                                raise Exception("Cannot extract embeddings")
+
+                # Ensure we have 2D embeddings (batch_size, embedding_dim)
+                if hasattr(batch_embeddings, 'dim') and batch_embeddings.dim() > 2:
+                    # Global average pooling for spatial dimensions
+                    spatial_dims = tuple(range(2, batch_embeddings.dim()))
+                    batch_embeddings = torch.mean(
+                        batch_embeddings, dim=spatial_dims
+                    )
 
                 # Move back to CPU and store
-                embeddings_list.append(batch_embeddings.cpu().numpy())
+                if hasattr(batch_embeddings, 'cpu'):
+                    embeddings_list.append(batch_embeddings.cpu().numpy())
+                else:
+                    # Convert to tensor if it's not already
+                    batch_embeddings = torch.tensor(batch_embeddings)
+                    embeddings_list.append(batch_embeddings.cpu().numpy())
 
                 if (i // batch_size + 1) % 10 == 0:
                     logger.info(
-                        f"Processed {i + len(batch)}/{len(patches_tensor)} patches"
+                        f"Processed {i + len(batch)}/"
+                        f"{len(patches_tensor)} patches"
                     )
 
         # Combine all embeddings
@@ -392,10 +483,12 @@ def generate_terramind_embeddings(
             "original_shape": rgb_data.shape,
             "patches_shape": patches.shape,
             "device_used": str(device),
+            "model_type": type(model).__name__
         }
 
         logger.info(
-            f"Generated {len(embeddings)} embeddings of dimension {embeddings.shape[1]}"
+            f"Generated {len(embeddings)} embeddings of "
+            f"dimension {embeddings.shape[1]}"
         )
         return embeddings, metadata
 

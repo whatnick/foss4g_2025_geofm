@@ -12,13 +12,14 @@ The project showcases the integration between:
 
 ## Key Features
 
-- 🌍 Load multi-temporal satellite imagery from STAC catalogs
-- 📊 Convert STAC data to xarray Datasets for efficient processing
-- 🤖 Integrate with TerraTorch for machine learning workflows
-- 🧠 Generate 768-dimensional embeddings using TerraMind foundation model
-- 📡 Support for major satellite data sources (Sentinel-2, Landsat, etc.)
-- ⚡ Cloud-native, scalable geospatial ML pipelines
-- 📈 Comprehensive visualization and analysis tools
+- 🌍 Load multi-temporal satellite imagery from STAC catalogs (Element84 Earth Search, Microsoft Planetary Computer)
+- 📊 Convert STAC data to xarray Datasets for efficient processing with odc-stac
+- 🤖 Integrate with TerraTorch for machine learning workflows with robust model loading
+- 🧠 Generate embeddings using geospatial foundation models (TerraMind, Clay, Prithvi) with ResNet18 fallback
+- 📡 Support for major satellite data sources (Sentinel-2, Landsat, MODIS, etc.)
+- ⚡ Cloud-native, scalable geospatial ML pipelines with configurable chunking
+- 📈 Comprehensive visualization and analysis tools for satellite imagery
+- 🔄 Robust fallback system ensuring compatibility across different environments
 
 ## Quick Start
 
