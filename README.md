@@ -30,8 +30,44 @@ The project showcases the integration between:
 git clone <repository-url>
 cd foss4g_2025_geofm
 
-# Install dependencies
+# Option 1: Production installation with pip
 pip install -e .
+
+# Option 2: Development installation with uv (recommended)
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e ".[dev]"
+
+# Option 3: Quick development setup (runs everything)
+./setup-dev.sh
+```
+
+### Development Setup
+
+For contributors and developers:
+
+```bash
+# Quick setup with pre-commit hooks and notebook cleaning
+./setup-dev.sh
+
+# This will:
+# - Create/activate a virtual environment with uv
+# - Install all dependencies from pyproject.toml
+# - Set up pre-commit hooks for code formatting
+# - Configure automatic notebook cleaning
+```
+
+### Optional Dependencies
+
+```bash
+# Install additional visualization tools
+uv pip install -e ".[vis]"
+
+# Install additional ML tools
+uv pip install -e ".[ml]"
+
+# Install everything for full development
+uv pip install -e ".[dev,vis,ml]"
 ```
 
 ### Basic Usage
@@ -96,9 +132,9 @@ rgb_array = rgb_composite.values
 
 # Generate 768-dimensional embeddings
 embeddings, metadata = generate_terramind_embeddings(
-    rgb_array, 
-    model, 
-    patch_size=16, 
+    rgb_array,
+    model,
+    patch_size=16,
     batch_size=32
 )
 
@@ -111,7 +147,7 @@ print(f"Generated {len(embeddings)} embeddings of dimension {embeddings.shape[1]
 The repository includes several example notebooks and scripts:
 
 - Basic STAC data loading with odc-stac
-- Multi-temporal analysis workflows  
+- Multi-temporal analysis workflows
 - TerraTorch model training examples
 - TerraMind embedding generation
 - Visualization and analysis notebooks
@@ -124,15 +160,35 @@ The repository includes several example notebooks and scripts:
 
 ## Dependencies
 
-Core dependencies:
-- `odc-stac>=0.3.0`: STAC data loading
-- `terratorch>=0.1.0`: Geospatial foundation models
-- `xarray>=2022.12.0`: Multi-dimensional arrays
-- `pystac-client>=0.7.0`: STAC catalog interaction
-- `rasterio>=1.3.0`: Geospatial data I/O
-- `pytorch>=2.0.0`: Deep learning framework
+All dependencies are managed in `pyproject.toml` for consistency and reproducibility:
 
-See `pyproject.toml` for complete dependency list.
+**Core Dependencies:**
+- `odc-stac>=0.3.0`: STAC data loading into xarray
+- `terratorch>=0.1.0`: Geospatial foundation models
+- `xarray>=2022.12.0`: Multi-dimensional labeled arrays
+- `pystac-client>=0.7.0`: STAC catalog interaction
+- `rasterio>=1.3.0`: Geospatial raster data I/O
+- `pytorch>=2.0.0`: Deep learning framework
+- `holoviews>=1.17.0`: Interactive 3D visualization
+
+**Development Dependencies:**
+- `ruff>=0.14.5`: Fast Python linter and formatter
+- `pre-commit>=3.0.0`: Git hooks for code quality
+- `pytest>=7.0.0`: Testing framework
+
+**Installation:**
+```bash
+# Production dependencies only
+uv pip install -e .
+
+# With development tools
+uv pip install -e ".[dev]"
+
+# With optional visualization/ML tools
+uv pip install -e ".[dev,vis,ml]"
+```
+
+See `pyproject.toml` for the complete dependency specification.
 
 ## Performance Tips
 

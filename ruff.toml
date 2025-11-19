@@ -1,0 +1,75 @@
+# Ruff configuration for FOSS4G 2025 GeoFM Demo
+# See: https://docs.astral.sh/ruff/
+
+# Global configuration
+line-length = 88
+target-version = "py311"
+
+# Exclude problematic notebook for now
+extend-exclude = ["notebooks/odc_stac_terratorch_demo.ipynb"]
+
+[lint]
+# Enable additional rules beyond the default set
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "I",      # isort
+    "N",      # pep8-naming
+    "C4",     # flake8-comprehensions
+    "PT",     # flake8-pytest-style
+]
+
+# Ignore specific rules that may be too strict for this project
+ignore = [
+    "E501",   # Line too long (let the formatter handle this)
+    "B008",   # Do not perform function calls in argument defaults
+    "B904",   # raise-without-from-inside-except
+]
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Files to exclude from linting
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Use 4 spaces for indentation
+indent-style = "space"
+
+# Respect magic trailing comma
+skip-magic-trailing-comma = false
+
+# Format docstrings
+docstring-code-format = true
+
+[lint.isort]
+# Configure import sorting
+force-single-line = false
+force-sort-within-sections = false
+known-first-party = ["main", "examples"]
+
+[lint.per-file-ignores]
+# Allow unused imports in __init__.py files
+"__init__.py" = ["F401"]
+# Allow print statements in example scripts
+"examples/*.py" = ["T201"]
+# Allow longer lines in configuration files
+"**/config.py" = ["E501"]
+
+[lint.mccabe]
+# Maximum complexity
+max-complexity = 10

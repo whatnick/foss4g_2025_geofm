@@ -16,16 +16,15 @@ Example usage:
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
 try:
-    import pystac_client
-    import odc.stac
-    import xarray as xr
     import matplotlib.pyplot as plt
     import numpy as np
+    import odc.stac
+    import pystac_client
     import torch
-    from typing import Tuple
+    import xarray as xr
 except ImportError as e:
     print(f"Missing required dependency: {e}")
     print("Please install dependencies with: pip install -e .")
@@ -41,9 +40,9 @@ logger = logging.getLogger(__name__)
 def load_stac_data(
     catalog_url: str = "https://earth-search.aws.element84.com/v1",
     collection: str = "sentinel-2-l2a",
-    bbox: list = [174.5, -37.0, 175.0, -36.7],  # Auckland, New Zealand
+    bbox: list = None,  # Auckland, New Zealand
     datetime: str = "2023-06-01/2023-06-30",
-    bands: list = ["red", "green", "blue", "nir"],
+    bands: list = None,
     resolution: int = 100,
     limit: int = 5,
 ) -> xr.Dataset:
@@ -63,6 +62,12 @@ def load_stac_data(
         xarray Dataset with loaded satellite imagery
     """
     logger.info(f"Connecting to STAC catalog: {catalog_url}")
+
+    # Initialize mutable defaults
+    if bbox is None:
+        bbox = [174.5, -37.0, 175.0, -36.7]  # Auckland, New Zealand
+    if bands is None:
+        bands = ["red", "green", "blue", "nir"]
 
     try:
         # Connect to STAC catalog
@@ -167,7 +172,7 @@ def visualize_dataset(dataset: xr.Dataset, output_dir: Path = Path("outputs")) -
         plt.close()
 
 
-def prepare_for_terratorch(dataset: xr.Dataset) -> Dict[str, Any]:
+def prepare_for_terratorch(dataset: xr.Dataset) -> dict[str, Any]:
     """
     Prepare the loaded dataset for use with TerraTorch.
 
@@ -372,7 +377,7 @@ def load_terramind_model():
 
 def generate_terramind_embeddings(
     rgb_data: np.ndarray, model, patch_size: int = 16, batch_size: int = 32
-) -> Tuple[Optional[np.ndarray], Dict[str, Any]]:
+) -> tuple[np.ndarray | None, dict[str, Any]]:
     """
     Generate embeddings for RGB satellite imagery using any available model.
 
@@ -415,17 +420,17 @@ def generate_terramind_embeddings(
     try:
         with torch.no_grad():
             for i in range(0, len(patches_tensor), batch_size):
-                batch = patches_tensor[i:i + batch_size].to(device)
+                batch = patches_tensor[i : i + batch_size].to(device)
 
                 # Check if this is a TerraMind-like model (expects dict)
                 try:
                     # Try TerraMind format first
                     batch_embeddings = model({"S2RGB": batch})
-                except (TypeError, KeyError, RuntimeError) as e:
+                except (TypeError, KeyError, RuntimeError):
                     # Fall back to standard tensor input
                     try:
                         batch_embeddings = model(batch)
-                        
+
                         # Handle different return types
                         if isinstance(batch_embeddings, list):
                             # ResNet often returns a list, take last element
@@ -433,33 +438,28 @@ def generate_terramind_embeddings(
                         elif isinstance(batch_embeddings, tuple):
                             # Some models return tuples
                             batch_embeddings = batch_embeddings[0]
-                    except Exception as e2:
+                    except Exception:
                         # If model has forward_features method, use that
-                        if hasattr(model, 'forward_features'):
+                        if hasattr(model, "forward_features"):
                             batch_embeddings = model.forward_features(batch)
                         else:
                             # Last resort: get features before classification
-                            if hasattr(model, 'features'):
+                            if hasattr(model, "features"):
                                 features = model.features(batch)
                                 # Global avg pooling for fixed-size embeddings
-                                pool_fn = torch.nn.functional.\
-                                    adaptive_avg_pool2d
-                                batch_embeddings = pool_fn(
-                                    features, (1, 1)
-                                ).flatten(1)
+                                pool_fn = torch.nn.functional.adaptive_avg_pool2d
+                                batch_embeddings = pool_fn(features, (1, 1)).flatten(1)
                             else:
                                 raise Exception("Cannot extract embeddings")
 
                 # Ensure we have 2D embeddings (batch_size, embedding_dim)
-                if hasattr(batch_embeddings, 'dim') and batch_embeddings.dim() > 2:
+                if hasattr(batch_embeddings, "dim") and batch_embeddings.dim() > 2:
                     # Global average pooling for spatial dimensions
                     spatial_dims = tuple(range(2, batch_embeddings.dim()))
-                    batch_embeddings = torch.mean(
-                        batch_embeddings, dim=spatial_dims
-                    )
+                    batch_embeddings = torch.mean(batch_embeddings, dim=spatial_dims)
 
                 # Move back to CPU and store
-                if hasattr(batch_embeddings, 'cpu'):
+                if hasattr(batch_embeddings, "cpu"):
                     embeddings_list.append(batch_embeddings.cpu().numpy())
                 else:
                     # Convert to tensor if it's not already
@@ -468,8 +468,7 @@ def generate_terramind_embeddings(
 
                 if (i // batch_size + 1) % 10 == 0:
                     logger.info(
-                        f"Processed {i + len(batch)}/"
-                        f"{len(patches_tensor)} patches"
+                        f"Processed {i + len(batch)}/{len(patches_tensor)} patches"
                     )
 
         # Combine all embeddings
@@ -483,12 +482,11 @@ def generate_terramind_embeddings(
             "original_shape": rgb_data.shape,
             "patches_shape": patches.shape,
             "device_used": str(device),
-            "model_type": type(model).__name__
+            "model_type": type(model).__name__,
         }
 
         logger.info(
-            f"Generated {len(embeddings)} embeddings of "
-            f"dimension {embeddings.shape[1]}"
+            f"Generated {len(embeddings)} embeddings of dimension {embeddings.shape[1]}"
         )
         return embeddings, metadata
 
@@ -509,10 +507,7 @@ def create_rgb_composite(dataset: xr.Dataset, time_index: int = -1) -> xr.DataAr
         RGB composite as xarray DataArray
     """
     # Select time slice
-    if "time" in dataset.dims:
-        ds = dataset.isel(time=time_index)
-    else:
-        ds = dataset
+    ds = dataset.isel(time=time_index) if "time" in dataset.dims else dataset
 
     # Create RGB stack
     rgb = xr.concat([ds.red, ds.green, ds.blue], dim="band")

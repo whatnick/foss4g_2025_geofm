@@ -5,10 +5,10 @@ This script demonstrates loading and analyzing multi-temporal satellite data
 for change detection and time series analysis.
 """
 
-import pystac_client
-import odc.stac
 import matplotlib.pyplot as plt
+import odc.stac
 import pandas as pd
+import pystac_client
 
 
 def multitemporal_analysis():
@@ -18,9 +18,7 @@ def multitemporal_analysis():
     print("=" * 40)
 
     # Connect to catalog
-    catalog = pystac_client.Client.open(
-        "https://earth-search.aws.element84.com/v1"
-    )
+    catalog = pystac_client.Client.open("https://earth-search.aws.element84.com/v1")
 
     # Search for data across multiple months
     search = catalog.search(

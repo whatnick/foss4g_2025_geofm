@@ -5,10 +5,10 @@ This script demonstrates the simplest possible workflow for loading
 satellite imagery from a STAC catalog using odc-stac.
 """
 
-import pystac_client
-import odc.stac
 import matplotlib.pyplot as plt
 import numpy as np
+import odc.stac
+import pystac_client
 
 
 def basic_stac_example():
@@ -18,9 +18,7 @@ def basic_stac_example():
     print("=" * 40)
 
     # Connect to catalog
-    catalog = pystac_client.Client.open(
-        "https://earth-search.aws.element84.com/v1"
-    )
+    catalog = pystac_client.Client.open("https://earth-search.aws.element84.com/v1")
 
     # Search for data
     search = catalog.search(

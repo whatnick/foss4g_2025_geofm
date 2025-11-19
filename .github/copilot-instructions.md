@@ -160,7 +160,7 @@ python examples/multitemporal_analysis.py
 
 ### Configuration Best Practices:
 1. **Use YAML/JSON configuration files** for reproducible experiments
-2. **Separate data loading and model configuration** for modularity  
+2. **Separate data loading and model configuration** for modularity
 3. **Include metadata and provenance** information in configurations
 4. **Support multiple environments** (local, cloud, HPC)
 5. **Configure appropriate tile sizes** based on model requirements
@@ -235,9 +235,9 @@ sample_areas:
   san_francisco:
     bbox: [-122.5, 37.4, -121.8, 38.0]
     description: "San Francisco Bay Area"
-  
+
   manhattan:
-    bbox: [-74.0, 40.7, -73.9, 40.8] 
+    bbox: [-74.0, 40.7, -73.9, 40.8]
     description: "Manhattan, New York"
 ```
 
@@ -245,7 +245,7 @@ sample_areas:
 ```yaml
 data_loading:
   default_resolution: 60  # meters
-  chunk_size: 
+  chunk_size:
     time: 1
     x: 512
     y: 512

@@ -1,0 +1,43 @@
+# Pre-commit configuration for FOSS4G 2025 GeoFM Demo
+repos:
+  # Standard code formatting and linting
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  # Python code formatting and linting with Ruff (replaces Black, isort, flake8)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.5
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+        exclude: ^notebooks/odc_stac_terratorch_demo\.ipynb$
+      # Run the formatter
+      - id: ruff-format
+        exclude: ^notebooks/odc_stac_terratorch_demo\.ipynb$
+
+  # Jupyter notebook formatting with Ruff
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.9.1
+    hooks:
+      - id: nbqa-ruff
+        args: [--fix]
+        additional_dependencies: [ruff==0.14.5]
+        exclude: ^notebooks/odc_stac_terratorch_demo\.ipynb$
+      - id: nbqa-ruff-format
+        additional_dependencies: [ruff==0.14.5]
+        exclude: ^notebooks/odc_stac_terratorch_demo\.ipynb$
+
+  # Clean notebook output and metadata
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.2
+    hooks:
+      - id: nbstripout
+        args: ["--drop-empty-cells", "--strip-init-cells"]

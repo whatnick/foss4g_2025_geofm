@@ -12,6 +12,7 @@ Example usage:
 import logging
 import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add parent directory to path to import main functions
@@ -19,10 +20,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 try:
     from main import (
-        load_stac_data,
         create_rgb_composite,
-        load_terramind_model,
         generate_terramind_embeddings,
+        load_stac_data,
+        load_terramind_model,
     )
 except ImportError as e:
     print(f"Error importing from main: {e}")
@@ -77,11 +78,25 @@ def analyze_embeddings(embeddings: np.ndarray, metadata: dict) -> dict:
 
 
 def run_terramind_demo(
-    bbox: list = [174.6, -36.95, 174.85, -36.75],  # Auckland
+    bbox: list = None,  # Auckland
     datetime_range: str = "2023-12-01/2023-12-31",
     patch_size: int = 16,
     batch_size: int = 8,
 ):
+    """
+    Run TerraMind embedding generation demo.
+
+    Args:
+        bbox: Bounding box coordinates [minx, miny, maxx, maxy]
+        datetime_range: ISO date range string
+        patch_size: Size of image patches
+        batch_size: Batch size for inference
+
+    Returns:
+        Dictionary with results and embeddings
+    """
+    if bbox is None:
+        bbox = [174.6, -36.95, 174.85, -36.75]  # Auckland
     """
     Run the complete TerraMind embedding demo.
 
