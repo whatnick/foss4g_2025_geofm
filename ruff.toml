@@ -5,9 +5,6 @@
 line-length = 88
 target-version = "py311"
 
-# Exclude problematic notebook for now
-extend-exclude = ["notebooks/odc_stac_terratorch_demo.ipynb"]
-
 [lint]
 # Enable additional rules beyond the default set
 select = [
