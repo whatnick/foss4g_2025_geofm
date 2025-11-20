@@ -25,9 +25,12 @@ try:
     import pystac_client
     import torch
     import xarray as xr
+    from terratorch.registry import BACKBONE_REGISTRY
 except ImportError as e:
     print(f"Missing required dependency: {e}")
-    print("Please install dependencies with: pip install -e .")
+    print("Please install dependencies with:")
+    print("  pip install odc-stac pystac-client xarray rasterio matplotlib")
+    print("  pip install 'git+https://github.com/terrastackai/terratorch.git'")
     sys.exit(1)
 
 # Configure logging
@@ -43,7 +46,7 @@ def load_stac_data(
     bbox: list = None,  # Auckland, New Zealand
     datetime: str = "2023-06-01/2023-06-30",
     bands: list = None,
-    resolution: int = 100,
+    resolution: int = 60,  # Better for TerraMind 16x16 patches
     limit: int = 5,
 ) -> xr.Dataset:
     """
@@ -296,50 +299,72 @@ def normalize_terramind_input(patches: np.ndarray) -> torch.Tensor:
 def load_terramind_model():
     """
     Load the TerraMind model for embedding generation.
-    Falls back to other available models if TerraMind is not available.
+
+    Now uses the latest TerraTorch with TerraMind support from GitHub.
+    TerraMind models are specifically designed for geospatial embeddings.
 
     Returns:
-        Loaded model or None if loading fails
+        Loaded model with configuration or None if loading fails
     """
     try:
-        from terratorch import BACKBONE_REGISTRY
-
         # List of models to try, in order of preference
         model_candidates = [
-            ("terramind_v1_base", ["S2RGB"]),  # Primary choice
-            ("clay_v1", ["optical"]),  # Clay foundation model fallback
-            ("prithvi_vit", ["optical"]),  # Prithvi foundation model fallback
-            ("resnet18", None),  # Simple CNN fallback
+            {
+                "name": "terratorch_terramind_v1_base",
+                "modalities": ["S2RGB"],
+                "description": "TerraMind v1 Base (768D embeddings)",
+                "is_terramind": True,
+            },
+            {
+                "name": "terratorch_terramind_v1_small",
+                "modalities": ["S2RGB"],
+                "description": "TerraMind v1 Small (384D embeddings)",
+                "is_terramind": True,
+            },
+            {
+                "name": "terratorch_prithvi_eo_v1_100",
+                "modalities": None,
+                "description": "Prithvi EO v1 100M (fallback)",
+                "is_terramind": False,
+            },
+            {
+                "name": "timm_resnet18",
+                "modalities": None,
+                "description": "ResNet18 (simple fallback)",
+                "is_terramind": False,
+            },
         ]
 
         model = None
-        model_name_used = None
+        config = None
 
-        for model_name, modalities in model_candidates:
+        for candidate in model_candidates:
             try:
-                logger.info(f"Attempting to load model: {model_name}")
+                model_name = candidate["name"]
+                logger.info(f"Attempting to load: {model_name}")
 
-                if modalities:
+                if candidate["modalities"]:
                     model = BACKBONE_REGISTRY.build(
-                        model_name, modalities=modalities, pretrained=True
+                        model_name, modalities=candidate["modalities"], pretrained=True
                     )
                 else:
                     model = BACKBONE_REGISTRY.build(model_name, pretrained=True)
 
-                model_name_used = model_name
-                logger.info(f"Successfully loaded {model_name}")
+                config = candidate
+                logger.info(f"✅ Successfully loaded {model_name}")
                 break
 
             except Exception as e:
-                logger.info(f"Failed to load {model_name}: {e}")
+                logger.info(f"❌ Failed to load {model_name}: {e}")
                 continue
 
         if model is None:
             logger.warning(
-                "Could not load any model. TerraMind and other foundation models may not be available."
+                "Could not load any model. Please check TerraTorch installation."
             )
             logger.warning(
-                "This may be due to missing model weights or incompatible TerraTorch version."
+                "Install latest version: pip install "
+                "'git+https://github.com/terrastackai/terratorch.git'"
             )
             return None
 
@@ -354,21 +379,24 @@ def load_terramind_model():
             model = model.to(device)
             logger.info("Model moved to GPU")
 
-        if model_name_used != "terramind_v1_base":
-            logger.warning(
-                f"TerraMind not available, using {model_name_used} as fallback."
-            )
-            logger.warning(
-                "Embeddings will be generated but may not be TerraMind-specific."
-            )
+        # Store configuration for later use
+        model._config = config
+
+        if config["is_terramind"]:
+            logger.info(f"🎯 TerraMind model loaded: {config['description']}")
+            logger.info("🌍 Optimized for geospatial embeddings")
         else:
-            logger.info("TerraMind model loaded successfully")
+            logger.warning(f"⚠️ Using fallback: {config['description']}")
+            logger.warning("Embeddings may not be TerraMind-specific")
 
         return model
 
     except ImportError as e:
         logger.warning(f"Could not import TerraTorch: {e}")
-        logger.warning("Please ensure terratorch is installed: pip install terratorch")
+        logger.warning(
+            "Please install: pip install "
+            "'git+https://github.com/terrastackai/terratorch.git'"
+        )
         return None
     except Exception as e:
         logger.error(f"Error loading model: {e}")
@@ -417,54 +445,44 @@ def generate_terramind_embeddings(
     logger.info("Generating embeddings...")
     embeddings_list = []
 
+    # Get model configuration
+    config = getattr(model, "_config", {})
+    is_terramind = config.get("is_terramind", False)
+
     try:
         with torch.no_grad():
             for i in range(0, len(patches_tensor), batch_size):
                 batch = patches_tensor[i : i + batch_size].to(device)
 
-                # Check if this is a TerraMind-like model (expects dict)
-                try:
-                    # Try TerraMind format first
-                    batch_embeddings = model({"S2RGB": batch})
-                except (TypeError, KeyError, RuntimeError):
-                    # Fall back to standard tensor input
-                    try:
-                        batch_embeddings = model(batch)
+                # Use model-specific calling convention
+                if is_terramind:
+                    # TerraMind expects dictionary input with S2RGB key
+                    outputs = model({"S2RGB": batch})
+                    if isinstance(outputs, list):
+                        # Use last layer output for TerraMind
+                        batch_embeddings = outputs[-1]
+                        # TerraMind output shape: [batch, 1, embedding_dim]
+                        batch_embeddings = batch_embeddings.squeeze(1)
+                    else:
+                        batch_embeddings = outputs
 
-                        # Handle different return types
-                        if isinstance(batch_embeddings, list):
-                            # ResNet often returns a list, take last element
-                            batch_embeddings = batch_embeddings[-1]
-                        elif isinstance(batch_embeddings, tuple):
-                            # Some models return tuples
-                            batch_embeddings = batch_embeddings[0]
-                    except Exception:
-                        # If model has forward_features method, use that
-                        if hasattr(model, "forward_features"):
-                            batch_embeddings = model.forward_features(batch)
-                        else:
-                            # Last resort: get features before classification
-                            if hasattr(model, "features"):
-                                features = model.features(batch)
-                                # Global avg pooling for fixed-size embeddings
-                                pool_fn = torch.nn.functional.adaptive_avg_pool2d
-                                batch_embeddings = pool_fn(features, (1, 1)).flatten(1)
-                            else:
-                                raise Exception("Cannot extract embeddings")
+                else:
+                    # Standard model calling
+                    outputs = model(batch)
+                    if isinstance(outputs, list):
+                        batch_embeddings = outputs[-1]
+                        if batch_embeddings.dim() > 2:
+                            # Take CLS token or global average
+                            batch_embeddings = batch_embeddings[:, 0, :]
+                    else:
+                        batch_embeddings = outputs
 
-                # Ensure we have 2D embeddings (batch_size, embedding_dim)
-                if hasattr(batch_embeddings, "dim") and batch_embeddings.dim() > 2:
-                    # Global average pooling for spatial dimensions
+                # Ensure 2D shape [batch_size, embedding_dim]
+                if batch_embeddings.dim() > 2:
                     spatial_dims = tuple(range(2, batch_embeddings.dim()))
                     batch_embeddings = torch.mean(batch_embeddings, dim=spatial_dims)
 
-                # Move back to CPU and store
-                if hasattr(batch_embeddings, "cpu"):
-                    embeddings_list.append(batch_embeddings.cpu().numpy())
-                else:
-                    # Convert to tensor if it's not already
-                    batch_embeddings = torch.tensor(batch_embeddings)
-                    embeddings_list.append(batch_embeddings.cpu().numpy())
+                embeddings_list.append(batch_embeddings.cpu().numpy())
 
                 if (i // batch_size + 1) % 10 == 0:
                     logger.info(

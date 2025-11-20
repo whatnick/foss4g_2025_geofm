@@ -1,6 +1,8 @@
 # FOSS4G 2025 GeoFM Demo - Loading via odc-stac into TerraTorch with TerraMind
 
-This repository demonstrates how to load geospatial data using **odc-stac** (Open Data Cube STAC) and integrate it with **TerraTorch** for geospatial foundation model workflows, including **TerraMind** embedding generation. This demo is designed for the FOSS4G 2025 conference to showcase modern cloud-native geospatial data processing and AI pipelines.
+This repository demonstrates how to load geospatial data using **odc-stac** (Open Data Cube STAC) and integrate it with **TerraTorch** for geospatial foundation model workflows, featuring **IBM's TerraMind** foundation model. This demo is designed for the FOSS4G 2025 conference to showcase modern cloud-native geospatial data processing and state-of-the-art AI pipelines.
+
+✨ **NEW**: Now includes working **TerraMind v1** integration with the latest TerraTorch from GitHub!
 
 ## Overview
 
@@ -8,39 +10,46 @@ The project showcases the integration between:
 - **STAC (SpatioTemporal Asset Catalog)**: A specification for describing geospatial assets
 - **odc-stac**: Python library for loading STAC items into xarray Datasets
 - **TerraTorch**: IBM's toolkit for fine-tuning Geospatial Foundation Models (GFMs)
-- **TerraMind**: Geospatial foundation model for generating rich embeddings from satellite imagery
+- **TerraMind v1**: IBM's state-of-the-art geospatial foundation model for generating 768-dimensional embeddings from 16x16 Sentinel-2 RGB patches
 
 ## Key Features
 
 - 🌍 Load multi-temporal satellite imagery from STAC catalogs (Element84 Earth Search, Microsoft Planetary Computer)
 - 📊 Convert STAC data to xarray Datasets for efficient processing with odc-stac
-- 🤖 Integrate with TerraTorch for machine learning workflows with robust model loading
-- 🧠 Generate embeddings using geospatial foundation models (TerraMind, Clay, Prithvi) with ResNet18 fallback
+- 🤖 **TerraMind v1 Integration**: IBM's geospatial foundation model with 768-dimensional embeddings
+- 🎯 **16x16 Patch Processing**: Optimized for TerraMind's designed input format
+- 🧠 Smart model fallback: TerraMind → Clay → Prithvi → ResNet18 for maximum compatibility
 - 📡 Support for major satellite data sources (Sentinel-2, Landsat, MODIS, etc.)
 - ⚡ Cloud-native, scalable geospatial ML pipelines with configurable chunking
-- 📈 Comprehensive visualization and analysis tools for satellite imagery
-- 🔄 Robust fallback system ensuring compatibility across different environments
+- 📈 Interactive visualization with PCA/t-SNE analysis of embedding spaces
+- 🔧 Latest TerraTorch from GitHub with full TerraMind model registry
 
 ## Quick Start
 
 ### Installation
+
+**Prerequisites**: Python 3.11+
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd foss4g_2025_geofm
 
-# Option 1: Production installation with pip
+# Option 1: Quick setup with latest TerraTorch (recommended)
+pip install "git+https://github.com/terrastackai/terratorch.git"
 pip install -e .
 
-# Option 2: Development installation with uv (recommended)
+# Option 2: Development installation with uv
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install "git+https://github.com/terrastackai/terratorch.git"
 uv pip install -e ".[dev]"
 
-# Option 3: Quick development setup (runs everything)
+# Option 3: Complete development setup
 ./setup-dev.sh
 ```
+
+**Important**: TerraMind models require the latest TerraTorch from GitHub (not PyPI) for full model registry support.
 
 ### Development Setup
 
@@ -120,26 +129,36 @@ model = terratorch.models.create_model({
 ### TerraMind Embedding Generation
 
 ```python
-# Generate embeddings with TerraMind foundation model
-from main import load_terramind_model, generate_terramind_embeddings, create_rgb_composite
+# Generate embeddings with IBM TerraMind v1 foundation model
+from terratorch.registry import BACKBONE_REGISTRY
+import torch
+import numpy as np
 
-# Load TerraMind model
-model = load_terramind_model()
+# Load TerraMind v1 Base model (768D embeddings)
+model = BACKBONE_REGISTRY.build(
+    'terratorch_terramind_v1_base',
+    modalities=['S2RGB'],  # 16x16 RGB patches
+    pretrained=True
+)
+model.eval()
 
 # Create RGB composite from STAC data
-rgb_composite = create_rgb_composite(dataset, time_index=-1)
-rgb_array = rgb_composite.values
+rgb_composite = dataset.red.isel(time=-1), dataset.green.isel(time=-1), dataset.blue.isel(time=-1)
+rgb_array = np.stack(rgb_composite, axis=-1) / 10000.0  # Convert to [0,1]
 
-# Generate 768-dimensional embeddings
-embeddings, metadata = generate_terramind_embeddings(
-    rgb_array,
-    model,
-    patch_size=16,
-    batch_size=32
-)
+# Extract 16x16 patches (TerraMind's designed input)
+patches = extract_16x16_patches(rgb_array)
+patches_tensor = prepare_terramind_input(patches)  # Normalize for model
 
-print(f"Generated {len(embeddings)} embeddings of dimension {embeddings.shape[1]}")
-# Generated 1024 embeddings of dimension 768
+# Generate embeddings
+with torch.no_grad():
+    embeddings = model({'S2RGB': patches_tensor})
+    embeddings = embeddings[-1].squeeze(1)  # Use last layer, remove sequence dim
+
+print(f"Generated {embeddings.shape[0]} TerraMind embeddings")
+print(f"Embedding dimension: {embeddings.shape[1]}")
+# Generated 8908 TerraMind embeddings
+# Embedding dimension: 768
 ```
 
 ## Examples
@@ -164,12 +183,13 @@ All dependencies are managed in `pyproject.toml` for consistency and reproducibi
 
 **Core Dependencies:**
 - `odc-stac>=0.3.0`: STAC data loading into xarray
-- `terratorch>=0.1.0`: Geospatial foundation models
+- `terratorch @ git+https://github.com/terrastackai/terratorch.git`: Latest TerraTorch with TerraMind support
 - `xarray>=2022.12.0`: Multi-dimensional labeled arrays
 - `pystac-client>=0.7.0`: STAC catalog interaction
 - `rasterio>=1.3.0`: Geospatial raster data I/O
-- `pytorch>=2.0.0`: Deep learning framework
-- `holoviews>=1.17.0`: Interactive 3D visualization
+- `torch>=2.0.0`: Deep learning framework
+- `huggingface_hub>=0.16.0`: For downloading TerraMind pretrained weights
+- `holoviews>=1.17.0`: Interactive visualization
 
 **Development Dependencies:**
 - `ruff>=0.14.5`: Fast Python linter and formatter
@@ -178,8 +198,11 @@ All dependencies are managed in `pyproject.toml` for consistency and reproducibi
 
 **Installation:**
 ```bash
-# Production dependencies only
-uv pip install -e .
+# Install latest TerraTorch first (required for TerraMind)
+pip install "git+https://github.com/terrastackai/terratorch.git"
+
+# Production dependencies
+pip install -e .
 
 # With development tools
 uv pip install -e ".[dev]"

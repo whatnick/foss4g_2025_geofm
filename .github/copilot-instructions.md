@@ -1,12 +1,14 @@
 # Co-pilot Instructions: FOSS4G 2025 GeoFM Demo - Loading via odc-stac into TerraTorch with TerraMind
 
 ## Project Overview
-This codebase demonstrates how to load geospatial data via odc-stac (Open Data Cube STAC) into TerraTorch for geospatial foundation model fine-tuning and analysis, including TerraMind embedding generation. The project serves as a practical example for the FOSS4G 2025 conference, showcasing the integration between STAC (SpatioTemporal Asset Catalog) data loading, modern geospatial machine learning workflows, and state-of-the-art foundation model embeddings.
+This codebase demonstrates how to load geospatial data via odc-stac (Open Data Cube STAC) into TerraTorch for geospatial foundation model fine-tuning and analysis, featuring **working IBM TerraMind v1 integration**. The project serves as a practical example for the FOSS4G 2025 conference, showcasing the integration between STAC (SpatioTemporal Asset Catalog) data loading, modern geospatial machine learning workflows, and IBM's state-of-the-art TerraMind foundation model for generating 768-dimensional embeddings from 16x16 satellite imagery patches.
+
+✨ **IMPORTANT**: This project now includes working TerraMind v1 Base model integration using the latest TerraTorch from GitHub.
 
 ## Core Technologies
 - **odc-stac**: Loads STAC items into xarray Datasets for efficient geospatial data handling
-- **TerraTorch**: IBM's Python toolkit for fine-tuning Geospatial Foundation Models (GFMs)
-- **TerraMind**: IBM's geospatial foundation model for generating rich 768-dimensional embeddings
+- **TerraTorch (Latest from GitHub)**: IBM's Python toolkit for fine-tuning Geospatial Foundation Models (GFMs)
+- **TerraMind v1**: IBM's geospatial foundation model generating 768-dimensional embeddings from 16x16 RGB patches
 - **xarray**: Multi-dimensional labeled arrays and datasets for scientific computing
 - **STAC**: SpatioTemporal Asset Catalog specification for geospatial asset metadata
 
@@ -61,47 +63,60 @@ dataset = odc.stac.load(
 )
 ```
 
-### 2. TerraTorch Integration
+### 2. TerraTorch Integration with TerraMind
 TerraTorch provides the machine learning framework for:
-- Processing xarray Datasets for model training
-- Fine-tuning geospatial foundation models
+- Loading IBM's TerraMind v1 foundation models from HuggingFace
+- Processing 16x16 RGB patches for TerraMind's designed input format
+- Generating 768-dimensional geospatial embeddings
 - Handling various geospatial ML tasks (segmentation, classification, regression)
-- Supporting multi-temporal data analysis
-
-**Example Integration Pattern:**
-```python
-import terratorch
-from terratorch.datamodules import GenericNonGeoSegmentationDataModule
-
-# Convert odc-stac data to TerraTorch format
-class ODCSTACDataset:
-    def __init__(self, dataset: xr.Dataset, tile_size: int = 256):
-        self.dataset = dataset
-        self.tile_size = tile_size
-        # Implementation details in notebook
-```
-
-### 3. TerraMind Integration
-TerraMind provides geospatial foundation model capabilities for:
-- Generating 768-dimensional embeddings from satellite imagery patches
-- Processing 16x16 RGB patches using Vision Transformer architecture
-- Supporting Sentinel-2 RGB data specifically
-- Enabling similarity analysis and feature extraction from geospatial data
+- Supporting multi-temporal data analysis with robust model fallbacks
 
 **TerraMind Integration Pattern:**
 ```python
-from terratorch.models.backbones import BACKBONE_REGISTRY
+from terratorch.registry import BACKBONE_REGISTRY
+import torch
 
-# Load TerraMind model
+# Load TerraMind v1 Base model
 model = BACKBONE_REGISTRY.build(
-    "terramind_v1_base",
-    modalities=["S2RGB"],
+    'terratorch_terramind_v1_base',
+    modalities=['S2RGB'],  # 16x16 RGB patches
     pretrained=True
 )
 
 # Generate embeddings
-embeddings = model({"S2RGB": normalized_patches})
-# Returns: tensor of shape (num_patches, 768)
+with torch.no_grad():
+    embeddings = model({'S2RGB': patches_tensor})
+    embeddings = embeddings[-1].squeeze(1)  # Last layer, remove sequence dim
+
+print(f"Generated {embeddings.shape[0]} embeddings of {embeddings.shape[1]}D")
+```
+
+### 3. TerraMind Integration (Working Implementation)
+TerraMind provides state-of-the-art geospatial foundation model capabilities:
+- **Model**: `terratorch_terramind_v1_base` with 768-dimensional embeddings
+- **Input Format**: 16x16 RGB patches from Sentinel-2 imagery
+- **Architecture**: Vision Transformer with 12 layers
+- **Modality**: S2RGB (Sentinel-2 RGB data scaled to [0-255])
+- **Processing**: Automatic download of 1.52GB pretrained weights from HuggingFace
+- **Fallback System**: TerraMind → TerraMind Small → Prithvi → ResNet18
+
+**Working TerraMind Pattern:**
+```python
+from terratorch.registry import BACKBONE_REGISTRY
+
+# Load TerraMind model (automatic weight download)
+model = BACKBONE_REGISTRY.build(
+    'terratorch_terramind_v1_base',
+    modalities=['S2RGB'],
+    pretrained=True
+)
+
+# Prepare 16x16 patches
+patches_tensor = prepare_16x16_patches(rgb_data)  # Shape: [N, 3, 16, 16]
+
+# Generate embeddings
+outputs = model({'S2RGB': patches_tensor})
+embeddings = outputs[-1].squeeze(1)  # Shape: [N, 768]
 ```
 
 ### 4. Supported Data Sources
@@ -116,14 +131,22 @@ embeddings = model({"S2RGB": normalized_patches})
 
 ### Installation
 ```bash
-# Clone and install
+# Clone and install with latest TerraTorch
 git clone <repository-url>
 cd foss4g_2025_geofm
+
+# CRITICAL: Install latest TerraTorch from GitHub first
+pip install "git+https://github.com/terrastackai/terratorch.git" huggingface_hub tokenizers
+
+# Then install project dependencies
 pip install -e .
 
-# Or install dependencies directly
-pip install -r requirements.txt
+# OR use uv for faster installation
+uv pip install "git+https://github.com/terrastackai/terratorch.git"
+uv pip install -e .
 ```
+
+**IMPORTANT**: TerraMind models are only available in the latest TerraTorch from GitHub, not the PyPI version.
 
 ### Run the Demo
 ```bash
